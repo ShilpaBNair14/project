@@ -62,8 +62,6 @@ def open_image():
         panel.image = img
         image = cv2.imread(filename)
 
-
-
 def image_decode():
     global image1
     if 'image1' not in globals():
@@ -136,17 +134,17 @@ def audio_encode():
         text_entry.insert("1.0", "Data Encoded Successfully")
 
     # GUI setup
-    encode_window = tk.Toplevel(root)
-    encode_window.title("Encode Text into Audio")
-    encode_window.geometry("400x200")
+    encode_tab3 = tk.Toplevel(root)
+    encode_tab3.title("Encode Text into Audio")
+    encode_tab3.geometry("400x200")
 
-    text_label = tk.Label(encode_window, text="Enter the secret message:")
+    text_label = tk.Label(encode_tab3, text="Enter the secret message:")
     text_label.pack()
 
-    text_entry = tk.Text(encode_window, height=4, width=40)
+    text_entry = tk.Text(encode_tab3, height=4, width=40)
     text_entry.pack()
 
-    encode_button = tk.Button(encode_window, text="Encode", command=encode)
+    encode_button = tk.Button(encode_tab3, text="Encode", command=encode)
     encode_button.pack()
 
 def audio_decode():
@@ -181,17 +179,108 @@ def audio_decode():
         song.close()
 
     # GUI setup
-    decode_window = tk.Toplevel(root)
-    decode_window.title("Decode Text from Audio")
-    decode_window.geometry("400x200")
+    decode_tab3 = tk.Toplevel(root)
+    decode_tab3.title("Decode Text from Audio")
+    decode_tab3.geometry("400x200")
 
-    decode_button = tk.Button(decode_window, text="Select Audio File", command=decode)
+    decode_button = tk.Button(decode_tab3, text="Select Audio File", command=decode)
     decode_button.pack(pady=10)
 
-    decoded_message_label = tk.Label(decode_window, text="")
+    decoded_message_label = tk.Label(decode_tab3, text="")
     decoded_message_label.pack()
 
-# Main Tkinter window
+
+def embed(frame, secret_message):
+    if len(secret_message) == 0: 
+        raise ValueError('Secret message is empty')
+
+    secret_message += '~!~!~'
+    binary_data = convert_to_binary(secret_message)
+    length_data = len(binary_data)
+    index_data = 0
+    for i in frame:
+        for pixel in i:
+            r, g, b = convert_to_binary(pixel)
+            if index_data < length_data:
+                pixel[0] = int(r[:-1] + binary_data[index_data], 2) 
+                index_data += 1
+            if index_data < length_data:
+                pixel[1] = int(g[:-1] + binary_data[index_data], 2) 
+                index_data += 1
+            if index_data < length_data:
+                pixel[2] = int(b[:-1] + binary_data[index_data], 2) 
+                index_data += 1
+            if index_data >= length_data:
+                break
+    return frame
+    
+
+def video_encode():
+    file_path = file_path_var.get()
+    if file_path == "":
+        tk.messagebox.showerror("Error", "Please select a video file.")
+        return
+
+    output_path = output_path_var.get()
+    if output_path == "":
+        tk.messagebox.showerror("Error", "Please select an output path.")
+        return
+
+    secret_message = secret_message_var.get()
+    frame_number = frame_number_var.get()
+    if not frame_number.isdigit() or int(frame_number) <= 0:
+        tk.messagebox.showerror("Error", "Invalid frame number.")
+        return
+
+    try:
+        cap = cv2.VideoCapture(file_path)
+        vidcap = cv2.VideoCapture(file_path)
+    except:
+        tk.messagebox.showerror("Error", "Failed to open video file.")
+        return
+
+    fourcc = cv2.VideoWriter_fourcc(*'XVID')
+    frame_width = int(vidcap.get(3))
+    frame_height = int(vidcap.get(4))
+    size = (frame_width, frame_height)
+    out = cv2.VideoWriter(output_path, fourcc, 25.0, size)
+    max_frame = 0
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if ret == False:
+            break
+        max_frame += 1
+    cap.release()
+    print("Total number of Frames in the selected Video:", max_frame)
+    frame_number = int(frame_number)
+    if frame_number > max_frame:
+        tk.messagebox.showerror("Error", "Invalid frame number.")
+        return
+
+    frame_count = 0
+    while vidcap.isOpened():
+        frame_count += 1
+        ret, frame = vidcap.read()
+        if ret == False:
+            break
+        if frame_count == frame_number:
+            frame_ = embed(frame, secret_message)
+            out.write(frame_)
+        else:
+            out.write(frame)
+    out.release()
+    print("\nData encoded successfully.")
+    tk.messagebox.showinfo("Success", "Data encoded successfully.")
+
+def browse_file():
+    file_path = filedialog.askopenfilename(filetypes=[("Video files", "*.mp4")])
+    file_path_var.set(file_path)
+
+def browse_output_path():
+    output_path = filedialog.asksaveasfilename(defaultextension=".mp4", filetypes=[("Video files", "*.mp4")])
+    output_path_var.set(output_path)
+
+# Main Tkinter tab3
 root = tk.Tk()
 root.title("Steganography")
 root.geometry("500x400")
@@ -199,8 +288,10 @@ root.geometry("500x400")
 tab_control = ttk.Notebook(root)
 tab1 = ttk.Frame(tab_control)
 tab2 = ttk.Frame(tab_control)
+tab3 = ttk.Frame(tab_control)
 tab_control.add(tab1, text='Image Steganography')
 tab_control.add(tab2, text='Audio Steganography')
+tab_control.add(tab3, text='Video Steganography')
 tab_control.pack(expand=1, fill='both')
 
 image_encode_frame = ttk.Frame(tab1)
@@ -224,16 +315,54 @@ decoded_message_label.pack(padx=10, pady=5)
 decode_button = tk.Button(image_decode_frame, text="Decode Message", command=image_decode)
 decode_button.pack(padx=10, pady=5)
 
-# Audio Steganography GUI
+
 audio_encode_frame = ttk.Frame(tab2)
 audio_encode_frame.pack(fill='both', padx=10, pady=10)
-
-
-# Audio Steganography button
 encode_button_audio = tk.Button(audio_encode_frame, text="Encode Text into Audio", command=audio_encode)
 encode_button_audio.pack(padx=10, pady=5)
-
 decode_button_audio = tk.Button(audio_encode_frame, text="Decode Text from Audio", command=audio_decode)
 decode_button_audio.pack(padx=10, pady=5)
+
+
+file_path_var = tk.StringVar()
+frame_number_var = tk.StringVar()
+secret_message_var = tk.StringVar()
+output_path_var = tk.StringVar()
+
+video_label = tk.Label(tab3, text="Select Video File:")
+video_label.grid(row=0, column=0, padx=10, pady=10)
+
+video_entry = tk.Entry(tab3, textvariable=file_path_var, width=40)
+video_entry.grid(row=0, column=1, padx=10, pady=10)
+
+browse_button = tk.Button(tab3, text="Browse", command=browse_file)
+browse_button.grid(row=0, column=2, padx=10, pady=10)
+
+frame_label = tk.Label(tab3, text="Enter Frame Number:")
+frame_label.grid(row=1, column=0, padx=10, pady=10)
+
+frame_entry = tk.Entry(tab3, textvariable=frame_number_var, width=10)
+frame_entry.grid(row=1, column=1, padx=10, pady=10)
+
+message_label = tk.Label(tab3, text="Enter Secret Message:")
+message_label.grid(row=2, column=0, padx=10, pady=10)
+
+message_entry = tk.Entry(tab3, textvariable=secret_message_var, width=40)
+message_entry.grid(row=2, column=1, padx=10, pady=10)
+
+output_label = tk.Label(tab3, text="Select Output Path:")
+output_label.grid(row=3, column=0, padx=10, pady=10)
+
+output_entry = tk.Entry(tab3, textvariable=output_path_var, width=40)
+output_entry.grid(row=3, column=1, padx=10, pady=10)
+
+output_button = tk.Button(tab3, text="Save As", command=browse_output_path)
+output_button.grid(row=3, column=2, padx=10, pady=10)
+
+encode_button = tk.Button(tab3, text="Encode", command=video_encode)
+encode_button.grid(row=4, column=1, padx=10, pady=10)
+
+
+
 
 root.mainloop()
