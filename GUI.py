@@ -17,40 +17,43 @@ def convert_to_binary(message):
     return result
 
 def image_encode():
-    global image
-    if 'image' not in globals():
-        messagebox.showerror("Error", "Please select an image first")
-        return
-    secret_data = entry.get().strip()
-    new_file = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG files", "*.png")])   
-    if not new_file:
-        return
-    number_of_bytes = (image.shape[0] * image.shape[1] * 3) // 8
-    print("\nThe number of bytes that can be encoded in the image:", number_of_bytes)
-    if number_of_bytes < len(secret_data):
-        messagebox.showerror("Error", "Not enough space")
-        return
-    secret_data += '~!~!~'
-    binary_data = convert_to_binary(secret_data)
-    print("\n", binary_data)
-    data_length = len(binary_data)
-    position = 0
-    for i in range(image.shape[0]):
-        for j in range(image.shape[1]):
-            r, g, b = convert_to_binary(image[i, j])
-            if position < data_length:
-                image[i, j] = int(r[:-1] + binary_data[position], 2), int(g[:-1] + binary_data[position], 2), int(b[:-1] + binary_data[position], 2)
-                position += 1
-            if position >= data_length:
-                break
-        if position >= data_length:
-            break
-    image = image.astype(np.uint8)
-    try:
-        cv2.imwrite(new_file, image)
-        messagebox.showinfo("Success", "Data encoded and saved successfully")
-    except Exception as e:
-        messagebox.showerror("Error", f"Failed to save the image: {str(e)}")
+    filename = filedialog.askopenfilename(title="Select Image")
+    if filename:
+        image = cv2.imread(filename)
+        secret_data = entry.get()
+        if not secret_data:
+            output_text.set("Data is Empty")
+            return
+        try:
+            number_of_bytes = (image.shape[0] * image.shape[1] * 3) // 8
+            if number_of_bytes < len(secret_data):
+                output_text.set("Not enough space")
+                return
+
+            secret_data += '~!~!~'
+            binary_data = convert_to_binary(secret_data)
+
+            position = 0
+            for i in image:
+                for pixel in i:
+                    r, g, b = convert_to_binary(pixel)
+                    if position < len(binary_data):
+                        pixel[0] = int(r[:-1] + binary_data[position], 2)
+                        position += 1
+                    if position < len(binary_data):
+                        pixel[1] = int(g[:-1] + binary_data[position], 2)
+                        position += 1
+                    if position < len(binary_data):
+                        pixel[2] = int(b[:-1] + binary_data[position], 2)
+                        position += 1
+                    if position >= len(binary_data):
+                        break
+            new_filename = filedialog.asksaveasfilename(title="Save Image As")
+            if new_filename:
+                cv2.imwrite(new_filename, image)
+                output_text.set("Data encoded successfully")
+        except Exception as e:
+            output_text.set(str(e))
 def open_image():
     global image
     filename = filedialog.askopenfilename(title="Select Image", filetypes=[("Image files", "*.jpg *.jpeg *.png *.gif")])
@@ -63,26 +66,24 @@ def open_image():
         image = cv2.imread(filename)
 
 def image_decode():
-    global image1
-    if 'image1' not in globals():
-        messagebox.showerror("Error", "Please select an image first")
-        return
-    data_binary = ""
-    for i in range(image1.shape[0]):
-        for j in range(image1.shape[1]):
-            r, g, b = convert_to_binary(image1[i, j])
-            data_binary += r[-1]
-            data_binary += g[-1]
-            data_binary += b[-1]
-    total_bytes = [data_binary[i: i + 8] for i in range(0, len(data_binary), 8)]
-    decoded_data = ""
-    for byte in total_bytes:
-        decoded_data += chr(int(byte, 2))
-        if decoded_data[-5:] == "~!~!~":
-            print("Decoded Message:", decoded_data[:-5])
-            decoded_message_label.config(text="Decoded Message: " + decoded_data[:-5])
-            messagebox.showinfo("Decoded Message", "The hidden message in the image is: " + decoded_data[:-5])
-            return
+    filename = filedialog.askopenfilename(title="Select Image")
+    if filename:
+        image = cv2.imread(filename)
+        data_binary = ""
+        for i in image:
+            for pixel in i:
+                r, g, b = convert_to_binary(pixel)
+                data_binary += r[-1]
+                data_binary += g[-1]
+                data_binary += b[-1]
+                total_bytes = [data_binary[i: i + 8] for i in range(0, len(data_binary), 8)]
+                decoded_data = ""
+                for byte in total_bytes:
+                    decoded_data += chr(int(byte, 2))
+                    if decoded_data[-5:] == "~!~!~":
+                        output_text.set("The data hidden in the image is: " + decoded_data[:-5])
+                        return
+           
 def open_image_decode():
     global image1
     filename = filedialog.askopenfilename(title="Select Image", filetypes=[("Image files", "*.jpg *.jpeg *.png *.gif")])
@@ -283,7 +284,7 @@ def browse_output_path():
 # Main Tkinter tab3
 root = tk.Tk()
 root.title("Steganography")
-root.geometry("500x400")
+root.geometry("600x600")
 
 tab_control = ttk.Notebook(root)
 tab1 = ttk.Frame(tab_control)
@@ -300,20 +301,23 @@ image_encode_frame.pack(fill='both', padx=10, pady=10)
 image_decode_frame.pack(fill='both', padx=10, pady=10)
 panel = tk.Label(root)
 panel.pack(padx=10, pady=10)
-upload_button = tk.Button(image_encode_frame, text="Upload Image", command=open_image)
-upload_button.pack(padx=10, pady=5)
+
 entry_label = tk.Label(image_encode_frame, text="Enter Message:")
 entry_label.pack(padx=10, pady=5)
 entry = tk.Entry(image_encode_frame)
 entry.pack(padx=10, pady=5)
 encode_button = tk.Button(image_encode_frame, text="Encode Message", command=image_encode)
 encode_button.pack(padx=10, pady=5)
-select_image_button = tk.Button(image_decode_frame, text="Select Image for Decoding", command=open_image_decode)
-select_image_button.pack(padx=10, pady=5)
+
+
 decoded_message_label = ttk.Label(image_decode_frame, text="")
 decoded_message_label.pack(padx=10, pady=5)
 decode_button = tk.Button(image_decode_frame, text="Decode Message", command=image_decode)
 decode_button.pack(padx=10, pady=5)
+
+output_text = tk.StringVar()
+output_label = tk.Label(image_decode_frame, textvariable=output_text)
+output_label.pack(pady=10)
 
 
 audio_encode_frame = ttk.Frame(tab2)
